@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+  STAFF
+}
+
+enum SubscriptionTier {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIAL
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  phoneNumber   String    @unique
+  email         String?
+  password      String
+  role          UserRole  @default(STUDENT)
+  schoolId      String?   // Optional because admins might not be tied to a school
+  school        School?   @relation(fields: [schoolId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                 String    @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model School {
+  id                String            @id @default(cuid())
+  name              String
+  code              String            @unique // School's unique registration code
+  address           String
+  county            String
+  subscriptionTier  SubscriptionTier  @default(BASIC)
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  currentPeriodEnds DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  users             User[]
+  mpesaTransactions MpesaTransaction[]
+}
+
+model MpesaTransaction {
+  id              String   @id @default(cuid())
+  schoolId        String
+  school          School   @relation(fields: [schoolId], references: [id])
+  merchantRequestId String  @unique
+  checkoutRequestId String  @unique
+  amount          Float
+  phoneNumber     String
+  status          String   // PENDING, COMPLETED, FAILED
+  resultCode      String?
+  resultDesc      String?
+  receiptNumber   String?  @unique
+  transactionDate DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
